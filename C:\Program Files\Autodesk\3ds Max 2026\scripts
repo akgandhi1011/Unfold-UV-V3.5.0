@@ -1,0 +1,111 @@
+name: Build Unfold UV V3.5.0
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/autoseam_worker.cpp'
+      - 'Unfold_UV.ms'
+      - 'Unfold_UV.mse'
+      - 'Unfold_UV.mcr'
+      - 'RotateUV_AlignBounds.png'
+      - 'RotateUV_AlignBounds_Mask.png'
+      - 'installer/**'
+      - '.github/workflows/build-windows.yml'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Enable MSVC x64
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Prepare output
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          New-Item -ItemType Directory -Force runtime | Out-Null
+
+      - name: Build Auto Seam worker
+        shell: cmd
+        run: cl /nologo /O2 /DNDEBUG /std:c++17 /EHsc /MD src\autoseam_worker.cpp /Fe:runtime\RotateUV_AutoSeam.exe
+
+      - name: Verify worker
+        shell: pwsh
+        run: |
+          $ver = & 'runtime\RotateUV_AutoSeam.exe' --version
+          if ($LASTEXITCODE -ne 0) { throw "Auto Seam --version failed" }
+          Write-Host $ver
+          if ($ver -notmatch 'RotateUV_AutoSeam\s+3\.4\.0') { throw "Unexpected Auto Seam version: $ver" }
+
+      - name: Prepare development runtime
+        shell: pwsh
+        run: |
+          Copy-Item Unfold_UV.ms runtime\Unfold_UV.ms -Force
+          Copy-Item Unfold_UV.mcr runtime\Unfold_UV.mcr -Force
+          Copy-Item RotateUV_AlignBounds.png runtime\ -Force
+          Copy-Item RotateUV_AlignBounds_Mask.png runtime\ -Force
+
+      - name: Build drag-and-drop DEV MZP
+        shell: pwsh
+        run: |
+          $root = Join-Path $PWD 'mzp_dev'
+          $payload = Join-Path $root 'UnfoldUV'
+          New-Item -ItemType Directory -Force $payload | Out-Null
+          Copy-Item runtime\RotateUV_AutoSeam.exe $payload -Force
+          Copy-Item Unfold_UV.ms $payload -Force
+          Copy-Item Unfold_UV.mcr $payload -Force
+          Copy-Item RotateUV_AlignBounds.png $payload -Force
+          Copy-Item RotateUV_AlignBounds_Mask.png $payload -Force
+          Copy-Item installer\mzp.run $root -Force
+          Copy-Item installer\UnfoldUV_Startup.ms $root -Force
+          Copy-Item installer\UnfoldUV_Install.ds $root -Force
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $out = Join-Path $PWD 'dist\Unfold_UV_2026_DEV.mzp'
+          if (Test-Path $out) { Remove-Item $out -Force }
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($root, $out)
+
+      - name: Build protected release MZP when MSE is present
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'Unfold_UV.mse')) {
+            Write-Host 'Unfold_UV.mse is not present. Protected MZP skipped.'
+            Write-Host 'Run Encrypt_Unfold_UV.ms inside 3ds Max, then add Unfold_UV.mse and rerun this workflow.'
+            exit 0
+          }
+          $root = Join-Path $PWD 'mzp_release'
+          $payload = Join-Path $root 'UnfoldUV'
+          New-Item -ItemType Directory -Force $payload | Out-Null
+          Copy-Item runtime\RotateUV_AutoSeam.exe $payload -Force
+          Copy-Item Unfold_UV.mse $payload -Force
+          Copy-Item Unfold_UV.mcr $payload -Force
+          Copy-Item RotateUV_AlignBounds.png $payload -Force
+          Copy-Item RotateUV_AlignBounds_Mask.png $payload -Force
+          Copy-Item installer\mzp.run $root -Force
+          Copy-Item installer\UnfoldUV_Startup.ms $root -Force
+          Copy-Item installer\UnfoldUV_Install.ds $root -Force
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $out = Join-Path $PWD 'dist\Unfold_UV_2026.mzp'
+          if (Test-Path $out) { Remove-Item $out -Force }
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($root, $out)
+
+      - name: Copy documentation
+        shell: pwsh
+        run: |
+          Copy-Item README.md dist\README.md -Force
+          Copy-Item CHANGES.md dist\CHANGES.md -Force
+          Copy-Item THIRD_PARTY_NOTICES.md dist\THIRD_PARTY_NOTICES.md -Force
+
+      - name: Upload Unfold UV package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unfold-UV-V3.5.0-Windows
+          path: dist/*
+          if-no-files-found: error
