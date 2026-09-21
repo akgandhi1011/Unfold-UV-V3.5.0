@@ -1,0 +1,51 @@
+macroScript UnfoldUV_MZP_Install
+category:"Unfold UV Installer"
+(
+    fn finishUnfoldUVInstall =
+    (
+        local root = (getDir #scripts) + "\\UnfoldUV\\"
+        local mcrPath = root + "Unfold_UV.mcr"
+        local msePath = root + "Unfold_UV.mse"
+        local msPath  = root + "Unfold_UV.ms"
+        local exePath = root + "RotateUV_AutoSeam.exe"
+        local iconPath = root + "RotateUV_AlignBounds.png"
+        local maskPath = root + "RotateUV_AlignBounds_Mask.png"
+        local mainPath = if doesFileExist msePath then msePath else msPath
+
+        if (doesFileExist mcrPath) and (doesFileExist mainPath) and (doesFileExist exePath) and (doesFileExist iconPath) and (doesFileExist maskPath) then
+        (
+            try(fileIn mcrPath)catch()
+            local opened = false
+            try
+            (
+                fileIn mainPath
+                if RotateUV_Open != undefined do
+                (
+                    RotateUV_Open()
+                    opened = true
+                )
+            )
+            catch()
+
+            messageBox (
+                "Unfold UV has been installed successfully.\n\n" +
+                "Installed to:\n" + root + "\n\n" +
+                "It will be registered automatically when 3ds Max starts.\n" +
+                "You can also find it under Customize User Interface > Category: Unfold UV."
+            ) title:"Unfold UV Installer"
+            true
+        )
+        else
+        (
+            messageBox (
+                "Unfold UV could not be fully installed.\n\n" +
+                "The target folder is:\n" + root + "\n\n" +
+                "C:\\Program Files is protected by Windows. Close 3ds Max, start it once with Run as administrator, then drag the MZP onto the viewport again."
+            ) title:"Unfold UV Installer"
+            false
+        )
+    )
+
+    on drop window node: do finishUnfoldUVInstall()
+    on execute do finishUnfoldUVInstall()
+)

@@ -1,0 +1,7 @@
+name "Unfold UV"
+description "Unfold UV for Autodesk 3ds Max 2026 - drag-and-drop installer"
+version 3.5
+treeCopy "UnfoldUV" to "$scripts"
+copy "UnfoldUV_Startup.ms" to "$scripts\Startup"
+drop "UnfoldUV_Install.ds"
+clear temp
